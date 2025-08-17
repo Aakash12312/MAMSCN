@@ -1,9 +1,6 @@
-# snmp_producer.py
 import asyncio
 import csv
-import json
 from datetime import datetime
-from kafka import KafkaProducer
 from pysnmp.hlapi.asyncio import (
     SnmpEngine,
     CommunityData,
@@ -11,51 +8,57 @@ from pysnmp.hlapi.asyncio import (
     ContextData,
     ObjectType,
     ObjectIdentity,
-    get_cmd
+    getCmd
 )
 
-KAFKA_BOOTSTRAP = "localhost:9092"
-KAFKA_TOPIC = "snmp_metrics"
 POLL_INTERVAL = 10  # seconds
+OUTPUT_FILE = "snmp_results.csv"
 
-producer = KafkaProducer(
-    bootstrap_servers=KAFKA_BOOTSTRAP,
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')
-)
+# Ensure CSV has headers
+with open(OUTPUT_FILE, "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["hostname", "ip", "port", "community", "collector_hostname", "timestamp", "oid", "value"])
 
-async def poll_snmp(ip, oid, community='public', hostname=None):
-    """Poll a single SNMP OID from a given device."""
-    transport = await UdpTransportTarget.create((ip, 161))
-    errorIndication, errorStatus, errorIndex, varBinds = await get_cmd(
-        SnmpEngine(),
-        CommunityData(community, mpModel=1),  # SNMP v2c
-        transport,
-        ContextData(),
-        ObjectType(ObjectIdentity(oid))
-    )
 
-    result = {}
-    if errorIndication:
-        result['error'] = str(errorIndication)
-    elif errorStatus:
-        result['error'] = f"{errorStatus.prettyPrint()} at {errorIndex and varBinds[int(errorIndex)-1][0]}"
-    else:
+async def poll_snmp(ip, port, oid, community="public", hostname=None):
+    """Poll a single SNMP OID from a given device and port."""
+    try:
+        transport = UdpTransportTarget((ip, int(port)))
+        errorIndication, errorStatus, errorIndex, varBinds = await getCmd(
+            SnmpEngine(),
+            CommunityData(community, mpModel=1),  # SNMP v2c
+            transport,
+            ContextData(),
+            ObjectType(ObjectIdentity(oid))
+        )
+
+        if errorIndication or errorStatus:
+            print(f"⚠️  Skipping {hostname or ip}:{port} OID {oid} due to error: {errorIndication or errorStatus.prettyPrint()}")
+            return
+
         for varBind in varBinds:
-            result[str(varBind[0])] = str(varBind[1])
+            oid_str = str(varBind[0])
+            value_str = str(varBind[1])
 
-    message = {
-        "host": hostname or ip,
-        "ip": ip,
-        "collector_hostname": "LocalCollector",
-        "timestamp": datetime.now().isoformat(),
-        "results": result
-    }
+            with open(OUTPUT_FILE, "a", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    hostname or ip,
+                    ip,
+                    port,
+                    community,
+                    "LocalCollector",
+                    datetime.now().isoformat(),
+                    oid_str,
+                    value_str
+                ])
+            print(f"✅ Saved SNMP data for {hostname or ip}:{port} (community={community}) OID {oid_str} = {value_str}")
 
-    producer.send(KAFKA_TOPIC, message)
-    print(f"✅ Sent SNMP data for {ip} OID {oid} to Kafka")
+    except Exception as e:
+        print(f"❌ Error polling {hostname or ip}:{port} OID {oid}: {e}")
+
 
 async def poll_all_devices():
-    """Poll all devices from inventory.csv once."""
     with open("inventory.csv") as f:
         reader = csv.DictReader(f)
         tasks = []
@@ -65,24 +68,22 @@ async def poll_all_devices():
                 tasks.append(
                     poll_snmp(
                         row["ip"],
-                        oid,
+                        row.get("port", 161),
+                        oid.strip(),
                         row.get("community", "public"),
                         row.get("hostname")
                     )
                 )
         await asyncio.gather(*tasks)
 
-    # Flush Kafka producer (blocking, not async)
-    producer.flush()
-
 
 async def main():
-    """Run SNMP polling in a loop every POLL_INTERVAL seconds."""
     while True:
         print(f"\n📡 Starting SNMP polling at {datetime.now().isoformat()}")
         await poll_all_devices()
         print(f"⏳ Waiting {POLL_INTERVAL} seconds before next poll...\n")
         await asyncio.sleep(POLL_INTERVAL)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
