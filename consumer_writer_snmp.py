@@ -11,7 +11,7 @@ KAFKA_TOPIC = "snmp_metrics"
 db = mysql.connector.connect(
     host="localhost",
     user="root",
-    password="Aakash10",
+    password="Root@1234",
     database="monitoring"
 )
 cursor = db.cursor()
