@@ -1,7 +1,11 @@
 # consumer_writer_snmp.py
 from kafka import KafkaConsumer
+import os
+from dotenv import load_dotenv
 import json
 import mysql.connector
+
+load_dotenv() 
 
 # Kafka Config
 KAFKA_BOOTSTRAP = "localhost:9092"
@@ -9,10 +13,10 @@ KAFKA_TOPIC = "snmp_metrics"
 
 # MySQL Config
 db = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="Root@1234",
-    database="monitoring"
+    host=os.getenv("DB_HOST"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD"),
+    database=os.getenv("DB_NAME")
 )
 cursor = db.cursor()
 
@@ -33,7 +37,7 @@ db.commit()
 consumer = KafkaConsumer(
     KAFKA_TOPIC,
     bootstrap_servers=KAFKA_BOOTSTRAP,
-    auto_offset_reset='earliest',
+    auto_offset_reset='latest',
     enable_auto_commit=True,
     value_deserializer=lambda m: json.loads(m.decode('utf-8'))
 )
@@ -61,7 +65,7 @@ for msg in consumer:
             rec.get('timestamp'),
             json.dumps(results)  # store only valid OIDs
         ))
-        db.commit()
+        db.commit() #------------------------------------------------------------------------for scalability - batch commiting in future 
         print(f"✅ Inserted SNMP record for {rec.get('ip')} at {rec.get('timestamp')}")
     except Exception as e:
         print(f"❌ DB write error for {rec.get('ip')}: {e}")
