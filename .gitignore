@@ -1,0 +1,6 @@
+.env
+
+#inventory.csv  
+# IMPORTANT: Interface OIDs (like ifInOctets) are per-interface, not per-device.
+# You must append an index suffix (e.g., '.1', '.2') to the OID to select a specific port.
+# This config defaults to '.1', which is typically the primary interface (e.g., eth0).
