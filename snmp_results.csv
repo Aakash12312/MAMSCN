@@ -1,9 +1,0 @@
-hostname,ip,port,community,collector_hostname,timestamp,oid,value
-LocalDevice,127.0.0.1,161,public,LocalCollector,2025-08-17T18:22:51.065575,1.3.6.1.2.1.1.5.0,Aakash
-LocalDevice,127.0.0.1,161,public,LocalCollector,2025-08-17T18:22:51.067129,1.3.6.1.2.1.1.1.0,Hardware: Intel64 Family 6 Model 154 Stepping 3 AT/AT COMPATIBLE - Software: Windows Version 6.3 (Build 26100 Multiprocessor Free)
-SimDevice1,127.0.0.1,1024,device1,LocalCollector,2025-08-17T18:22:51.102861,1.3.6.1.2.1.1.1.0,Linux Ubuntu 22.04 - Test Server
-SimDevice1,127.0.0.1,1024,device1,LocalCollector,2025-08-17T18:22:51.115396,1.3.6.1.2.1.1.5.0,Device1-Sim
-SimDevice2,127.0.0.1,1024,device2,LocalCollector,2025-08-17T18:22:51.125920,1.3.6.1.2.1.1.1.0,Windows 10 Pro - Workstation
-SimDevice2,127.0.0.1,1024,device2,LocalCollector,2025-08-17T18:22:51.134917,1.3.6.1.2.1.1.5.0,Device2-Sim
-SimDevice3,127.0.0.1,1024,device3,LocalCollector,2025-08-17T18:22:51.146931,1.3.6.1.2.1.1.1.0,Cisco IOS Router - Virtual
-SimDevice3,127.0.0.1,1024,device3,LocalCollector,2025-08-17T18:22:51.155922,1.3.6.1.2.1.1.5.0,Device3-Sim
