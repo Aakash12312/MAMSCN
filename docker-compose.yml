@@ -20,9 +20,37 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Advertise for local dev
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: snmp_db
+      MYSQL_USER: snmpuser
+      MYSQL_PASSWORD: snmppass
+    ports:
+      - "3307:3306"   # ✅ changed to 3307 so it won't clash with your local MySQL
+    volumes:
+      - mysql_data:/var/lib/mysql
 
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: grafana
+    depends_on:
+      - mysql
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  mysql_data:
+  grafana_data:
