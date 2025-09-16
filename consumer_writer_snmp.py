@@ -16,16 +16,19 @@ KAFKA_TOPIC = "snmp_metrics"
 OUTPUT_CSV = "snmp_consumed_ai.csv"
 
 # OID to feature mapping (adjust index if needed)
+# OID to feature mapping (aligned with dataset columns – ifIndex=11)
 OID_TO_FEATURE = {
-    "1.3.6.1.2.1.2.2.1.10.1": "ifInOctets1",
-    "1.3.6.1.2.1.2.2.1.16.1": "ifOutOctets1",
-    "1.3.6.1.2.1.2.2.1.19.1": "ifOutDiscards1",
-    "1.3.6.1.2.1.2.2.1.11.1": "ifInUcastPkts1",
-    "1.3.6.1.2.1.2.2.1.12.1": "ifInNUcastPkts1",
-    "1.3.6.1.2.1.2.2.1.13.1": "ifInDiscards1",
-    "1.3.6.1.2.1.2.2.1.17.1": "ifOutUcastPkts1",
-    "1.3.6.1.2.1.2.2.1.18.1": "ifOutNUcastPkts1",
+    # --- Interfaces Group (ifTable – index 11) ---
+    "1.3.6.1.2.1.2.2.1.10.11": "ifInOctets11",
+    "1.3.6.1.2.1.2.2.1.16.11": "ifOutOctets11",
+    "1.3.6.1.2.1.2.2.1.19.11": "ifOutDiscards11",
+    "1.3.6.1.2.1.2.2.1.11.11": "ifInUcastPkts11",
+    "1.3.6.1.2.1.2.2.1.12.11": "ifInNUcastPkts11",
+    "1.3.6.1.2.1.2.2.1.13.11": "ifInDiscards11",
+    "1.3.6.1.2.1.2.2.1.17.11": "ifOutUcastPkts11",
+    "1.3.6.1.2.1.2.2.1.18.11": "ifOutNUcastPkts11",
 
+    # --- TCP Group ---
     "1.3.6.1.2.1.6.15.0": "tcpOutRsts",
     "1.3.6.1.2.1.6.10.0": "tcpInSegs",
     "1.3.6.1.2.1.6.11.0": "tcpOutSegs",
@@ -35,11 +38,13 @@ OID_TO_FEATURE = {
     "1.3.6.1.2.1.6.8.0": "tcpEstabResets",
     "1.3.6.1.2.1.6.5.0": "tcpActiveOpens",
 
+    # --- UDP Group ---
     "1.3.6.1.2.1.7.1.0": "udpInDatagrams",
     "1.3.6.1.2.1.7.4.0": "udpOutDatagrams",
     "1.3.6.1.2.1.7.3.0": "udpInErrors",
     "1.3.6.1.2.1.7.2.0": "udpNoPorts",
 
+    # --- IP Group ---
     "1.3.6.1.2.1.4.3.0": "ipInReceives",
     "1.3.6.1.2.1.4.9.0": "ipInDelivers",
     "1.3.6.1.2.1.4.10.0": "ipOutRequests",
@@ -49,10 +54,11 @@ OID_TO_FEATURE = {
     "1.3.6.1.2.1.4.12.0": "ipOutNoRoutes",
     "1.3.6.1.2.1.4.5.0": "ipInAddrErrors",
 
+    # --- ICMP Group ---
     "1.3.6.1.2.1.5.1.0": "icmpInMsgs",
     "1.3.6.1.2.1.5.3.0": "icmpInDestUnreachs",
     "1.3.6.1.2.1.5.14.0": "icmpOutMsgs",
-    "1.3.6.1.2.1.5.18.0": "icmpOutDestUnreachs",
+    "1.3.6.1.2.1.5.23.0": "icmpOutDestUnreachs",   # corrected to .23
     "1.3.6.1.2.1.5.8.0": "icmpInEchos",
     "1.3.6.1.2.1.5.21.0": "icmpOutEchoReps"
 }
