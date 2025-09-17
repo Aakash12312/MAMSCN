@@ -1,5 +1,5 @@
 .env
-
+.snmp_consumed_ai.csv
 #inventory.csv  
 # IMPORTANT: Interface OIDs (like ifInOctets) are per-interface, not per-device.
 # You must append an index suffix (e.g., '.1', '.2') to the OID to select a specific port.
