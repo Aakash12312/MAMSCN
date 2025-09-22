@@ -1,3 +1,21 @@
+Got it! Here's a more concise version:
+
+1. **Maven command to compile without tests:**
+   `mvn compile -DskipTests`
+
+2. **Plugin for JAR with dependencies:**
+   `maven-assembly-plugin`
+
+3. **If dependency is missing in `.m2` repo:**
+   Maven will fail the build and try to download it.
+
+4. **Role of `<build>` in `pom.xml`:**
+   Defines build process, including plugins and configurations.
+
+5. **Where is JAR/war after packaging:**
+   In the `target/` directory.
+
+
 https://chatgpt.com/share/68d0fe90-c57c-800e-8f5e-18d611dcbe91
 2nd
 git checkout main
