@@ -1,67 +1,112 @@
-# ==============================
-# Network Anomaly Detection (with verbose progress)
-# ==============================
+# ============================================
+# Network Anomaly Detection (Isolation Forest)
+# ============================================
 
 import pandas as pd
 import numpy as np
 import os
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import IsolationForest
-from tqdm import tqdm
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import joblib
 
-# 1. Load dataset
+# -----------------------------
+# 1. Load Dataset
+# -----------------------------
 print("[INFO] Loading dataset...")
-base_path = "./datasets/all_data (3).csv"
-file_name = "all_data (3).csv"  # exact file name
+base_path = "./datasets"
+file_name = "all_data (3).csv"
 df = pd.read_csv(os.path.join(base_path, file_name))
 
-print("[INFO] Dataset shape:", df.shape)
+print("[INFO] Dataset loaded:", df.shape)
 print("[INFO] Columns:", df.columns.tolist())
-print("[INFO] Preview:\n", df.head())
 
-# 2. Select numeric features
-print("\n[INFO] Selecting numeric features...")
+# -----------------------------
+# 2. Identify label column (optional)
+# -----------------------------
+label_col = None
+for col in ["class", "Class", "label", "Label"]:
+    if col in df.columns:
+        label_col = col
+        break
+
+if label_col:
+    print(f"[INFO] Detected label column: '{label_col}'")
+    print(df[label_col].value_counts())
+
+# -----------------------------
+# 3. Select numeric columns only
+# -----------------------------
 df_num = df.select_dtypes(include=['float64', 'int64'])
-print("[INFO] Using", df_num.shape[1], "numeric features")
+print(f"[INFO] Using {df_num.shape[1]} numeric features")
 
-# 3. Scale features
-print("\n[INFO] Scaling features...")
+# -----------------------------
+# 4. Scale the data
+# -----------------------------
 scaler = StandardScaler()
 X = scaler.fit_transform(df_num)
 
-# 4. Train Isolation Forest with tqdm
-print("\n[INFO] Training Isolation Forest...")
-iso = IsolationForest(contamination=0.05, random_state=42, verbose=0)
+# -----------------------------
+# 5. Train Isolation Forest (always)
+# -----------------------------
+print("\n[MODE] Unsupervised Isolation Forest")
 
-# Wrap fit with tqdm progress
+# Adjust contamination to a safe value if dataset is imbalanced
+contamination = 0.05
+iso = IsolationForest(contamination=contamination, random_state=42)
+
+print("[INFO] Training Isolation Forest...")
 for _ in tqdm(range(1), desc="Fitting Model"):
     iso.fit(X)
 
-# 5. Predict anomalies with progress bar
-print("\n[INFO] Predicting anomalies...")
-y_pred = []
-for i in tqdm(range(0, len(X), 10000), desc="Predicting in batches"):
-    batch_pred = iso.predict(X[i:i+10000])
-    y_pred.extend(batch_pred)
+print("[INFO] Predicting anomalies...")
+y_pred = iso.predict(X)
+df['anomaly'] = np.where(y_pred == -1, 1, 0)
 
-df['anomaly'] = y_pred
+# -----------------------------
+# 6. Evaluate (optional) if label exists
+# -----------------------------
+if label_col:
+    # Convert labels to 0/1 if needed
+    y_true = np.where(df[label_col] == 'normal', 0, 1)
+    print("\n[INFO] Evaluation against ground truth:")
+    print("Accuracy:", accuracy_score(y_true, df['anomaly']))
+    print("\nConfusion Matrix:\n", confusion_matrix(y_true, df['anomaly']))
+    print("\nClassification Report:\n", classification_report(y_true, df['anomaly']))
 
-# 6. Print results
-print("\n[INFO] Anomaly counts:\n", df['anomaly'].value_counts())
-print("\n[INFO] Sample results:\n", df[['anomaly']].head())
-
-# 7. Visualize anomaly distribution
-plt.figure(figsize=(6,4))
-df['anomaly'].value_counts().plot(kind='bar', color=['green','red'])
-plt.xticks([0,1], ['Normal','Anomaly'], rotation=0)
-plt.title("Anomaly Detection Results")
+# -----------------------------
+# 7. Visualize anomaly results
+# -----------------------------
+plt.figure(figsize=(6, 4))
+df['anomaly'].value_counts().plot(kind='bar', color=['green', 'red'])
+plt.title("Anomaly Distribution")
+plt.xticks(rotation=0)
+plt.xlabel("0 = Normal, 1 = Anomaly")
+plt.ylabel("Count")
+plt.tight_layout()
 plt.show()
 
-# 8. Optional: Evaluate if dataset has labels
-if 'Label' in df.columns or 'label' in df.columns:
-    from sklearn.metrics import classification_report, confusion_matrix
-    
-    label_col = 'Label' if 'Label' in df.columns else 'label'
-    print("\n[INFO] Confusion Matrix:\n", confusion_matrix(df[label_col], df['anomaly']))
-    print("\n[INFO] Classification Report:\n", classification_report(df[label_col], df['anomaly']))
+# -----------------------------
+# 8. Save Isolation Forest model, scaler, and feature order
+# -----------------------------
+os.makedirs("models", exist_ok=True)
+
+# Model
+model_path = "models/isolation_forest_model.pkl"
+joblib.dump(iso, model_path)
+
+# Scaler
+scaler_path = "models/scaler.pkl"
+joblib.dump(scaler, scaler_path)
+
+# Feature order
+feature_order_path = "models/feature_order.pkl"
+joblib.dump(df_num.columns.tolist(), feature_order_path)
+
+print(f"\n[INFO] Model saved at '{model_path}'")
+print(f"[INFO] Scaler saved at '{scaler_path}'")
+print(f"[INFO] Feature order saved at '{feature_order_path}'")
+
+print("\n[INFO] Training complete ✅")
