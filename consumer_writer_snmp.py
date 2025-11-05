@@ -1,13 +1,14 @@
-# consumer_ai_snmp.py (Isolation Forest with anomaly scores)
 import os
 import json
 import csv
+from datetime import datetime
 from kafka import KafkaConsumer
 from dotenv import load_dotenv
 import mysql.connector
 import joblib
 import pandas as pd
 
+# --- Load environment variables ---
 load_dotenv()
 
 # --- CONFIG ---
@@ -16,7 +17,7 @@ KAFKA_TOPIC = "snmp_metrics"
 OUTPUT_CSV = "snmp_consumed_ai.csv"
 
 # Threshold for marking anomaly
-ANOMALY_THRESHOLD = -0.1  # adjust based on your dataset
+ANOMALY_THRESHOLD = -0.1  # adjust based on dataset
 
 # --- OID to feature mapping ---
 OID_TO_FEATURE = {
@@ -85,7 +86,8 @@ CREATE TABLE IF NOT EXISTS snmp_metrics_ai (
     timestamp VARCHAR(30),
     results JSON,
     anomaly_score FLOAT,
-    anomaly_flag VARCHAR(20)
+    anomaly_flag VARCHAR(20),
+    anomaly_timestamp VARCHAR(30)
 )
 """)
 db.commit()
@@ -95,7 +97,7 @@ with open(OUTPUT_CSV, "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow([
         "host", "ip", "collector_hostname", "timestamp",
-        "feature", "value", "anomaly_score", "anomaly_flag"
+        "feature", "value", "anomaly_score", "anomaly_flag", "anomaly_timestamp"
     ])
 
 # --- Kafka Consumer ---
@@ -127,14 +129,18 @@ for msg in consumer:
         # Scale
         feature_vector_scaled = scaler.transform(feature_vector)
 
-        # Get anomaly score (higher = more normal)
+        # Get anomaly score
         score = model.decision_function(feature_vector_scaled)[0]
         anomaly_flag = "Normal" if score >= ANOMALY_THRESHOLD else "Anomaly"
+        anomaly_time = datetime.now().isoformat() if anomaly_flag == "Anomaly" else None
 
         # Insert into MySQL
         cursor.execute("""
-            INSERT INTO snmp_metrics_ai (host, ip, collector_hostname, timestamp, results, anomaly_score, anomaly_flag)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO snmp_metrics_ai (
+                host, ip, collector_hostname, timestamp, results,
+                anomaly_score, anomaly_flag, anomaly_timestamp
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             rec.get("host"),
             rec.get("ip"),
@@ -142,7 +148,8 @@ for msg in consumer:
             rec.get("timestamp"),
             json.dumps(mapped_results),
             score,
-            anomaly_flag
+            anomaly_flag,
+            anomaly_time
         ))
         db.commit()
 
@@ -158,10 +165,15 @@ for msg in consumer:
                     feature,
                     value,
                     score,
-                    anomaly_flag
+                    anomaly_flag,
+                    anomaly_time
                 ])
 
-        print(f"✅ {rec.get('ip')} @ {rec.get('timestamp')} → {anomaly_flag} (score={score:.3f})")
+        # Console output
+        if anomaly_flag == "Anomaly":
+            print(f"🚨 {rec.get('ip')} @ {rec.get('timestamp')} → ANOMALY at {anomaly_time} (score={score:.3f})")
+        else:
+            print(f"✅ {rec.get('ip')} @ {rec.get('timestamp')} → Normal (score={score:.3f})")
 
     except Exception as e:
         print(f"❌ Processing error: {e}")

@@ -23,7 +23,8 @@ producer = KafkaProducer(
 # CSV log header
 with open(LOCAL_CSV_LOG, "w", newline="") as f:
     writer = csv.writer(f)
-    writer.writerow(["hostname", "ip", "port", "community", "collector_hostname", "timestamp", "oid", "value"])
+    writer.writerow(["hostname", "ip", "port", "community",
+                     "collector_hostname", "timestamp", "oid", "value"])
 
 async def poll_snmp(snmp_engine, ip, oids_list, community='public', hostname=None):
     """Poll multiple OIDs for one device."""
@@ -71,8 +72,10 @@ async def poll_snmp(snmp_engine, ip, oids_list, community='public', hostname=Non
         with open(LOCAL_CSV_LOG, "a", newline="") as f:
             writer = csv.writer(f)
             for oid, value in record["results"].items():
-                writer.writerow([record["host"], host, port, community,
-                                record["collector_hostname"], record["timestamp"], oid, value])
+                writer.writerow([
+                    record["host"], host, port, community,
+                    record["collector_hostname"], record["timestamp"], oid, value
+                ])
 
     # Send to Kafka
     producer.send(KAFKA_TOPIC, record)
@@ -83,11 +86,15 @@ async def poll_all_devices():
     with open("inventory.csv") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            if ":" not in row["ip"]: continue
+            if ":" not in row["ip"]:
+                continue
             oids_to_poll = [oid for oid in row["oids"].split(";") if oid]
-            if not oids_to_poll: continue
-            tasks.append(poll_snmp(snmp_engine, row["ip"], oids_to_poll,
-                                row.get("community", "public"), row.get("hostname")))
+            if not oids_to_poll:
+                continue
+            tasks.append(
+                poll_snmp(snmp_engine, row["ip"], oids_to_poll,
+                          row.get("community", "public"), row.get("hostname"))
+            )
     if tasks:
         await asyncio.gather(*tasks)
     producer.flush()
