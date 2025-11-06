@@ -3,9 +3,9 @@ import csv
 import json
 from datetime import datetime
 from kafka import KafkaProducer
-from pysnmp.hlapi.asyncio import (
+from pysnmp.hlapi.v3arch.asyncio import (
     SnmpEngine, CommunityData, UdpTransportTarget,
-    ContextData, ObjectType, ObjectIdentity, getCmd
+    ContextData, ObjectType, ObjectIdentity, get_cmd
 )
 
 # --- CONFIGURATION ---
@@ -24,7 +24,7 @@ producer = KafkaProducer(
 with open(LOCAL_CSV_LOG, "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(["hostname", "ip", "port", "community",
-                     "collector_hostname", "timestamp", "oid", "value"])
+                    "collector_hostname", "timestamp", "oid", "value"])
 
 async def poll_snmp(snmp_engine, ip, oids_list, community='public', hostname=None):
     """Poll multiple OIDs for one device."""
@@ -35,16 +35,19 @@ async def poll_snmp(snmp_engine, ip, oids_list, community='public', hostname=Non
         print(f"⚠ Invalid IP format: {ip}")
         return
 
-    transport = UdpTransportTarget((host, port))
+    # ✅ FIX: use async creation
+    transport = await UdpTransportTarget.create((host, port))
+
     var_binds_to_get = [ObjectType(ObjectIdentity(oid)) for oid in oids_list]
 
-    errorIndication, errorStatus, errorIndex, varBinds = await getCmd(
+    errorIndication, errorStatus, errorIndex, varBinds = await get_cmd(
         snmp_engine,
         CommunityData(community, mpModel=1),
         transport,
         ContextData(),
         *var_binds_to_get
     )
+
 
     record = {
         "host": hostname or ip,

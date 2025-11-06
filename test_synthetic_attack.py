@@ -1,62 +1,26 @@
-# test_synthetic_attacks.py
+# ============================================
+# test_synthetic_attacks_hybrid.py
+# ============================================
 import joblib
 import numpy as np
 import pandas as pd
 
-# load model artifacts
-scaler = joblib.load("models/scaler.pkl")
-model = joblib.load("models/isolation_forest_model.pkl")
+# --- Load model artifacts ---
+print("[INFO] Loading models...")
+scaler_if = joblib.load("models/scaler.pkl")
+model_if = joblib.load("models/isolation_forest_model.pkl")
 feature_order = joblib.load("models/feature_order.pkl")
-header = "ifInOctets11,ifOutOctets11,ifoutDiscards11,ifInUcastPkts11,ifInNUcastPkts11,ifInDiscards11,ifOutUcastPkts11,ifOutNUcastPkts11,tcpOutRsts,tcpInSegs,tcpOutSegs,tcpPassiveOpens,tcpRetransSegs,tcpCurrEstab,tcpEstabResets,tcp?ActiveOpens,udpInDatagrams,udpOutDatagrams,udpInErrors,udpNoPorts,ipInReceives,ipInDelivers,ipOutRequests,ipOutDiscards,ipInDiscards,ipForwDatagrams,ipOutNoRoutes,ipInAddrErrors,icmpInMsgs,icmpInDestUnreachs,icmpOutMsgs,icmpOutDestUnreachs,icmpInEchos,icmpOutEchoReps,class"
-values = "1867925250,902237363,0,52007310,16978,0,7197292,3968,1,682,537,49,14,0,5,3,241016,187093,1,22,59300887,244972,187698,569,23,59244345,7,0,49,26,46,23,23,23,normal"
 
-# 3) Build DataFrame for features (exclude 'class' column for model input)
-cols = header.split(",")
-vals = values.split(",")
-assert len(cols) == len(vals), "header/values length mismatch"
+# 🧠 NEW: Load classification model artifacts
+model_cls = joblib.load("models/anomaly_classifier.pkl")
+scaler_cls = joblib.load("models/classifier_scaler.pkl")
+label_encoder = joblib.load("models/label_encoder.pkl")
 
-# Put into dict, convert numeric columns to float
-row = dict(zip(cols, vals))
-# Remove class label before prediction
-if 'class' in row:
-    true_label = row.pop('class')
-else:
-    true_label = None
+print("[INFO] Models loaded successfully ✅")
 
-# Convert to numeric where possible
-for k in list(row.keys()):
-    try:
-        row[k] = float(row[k])
-    except:
-        # leave as-is if cannot convert
-        pass
-
-df_row = pd.DataFrame([row])
-
-# 4) Align to training feature order and fill missing
-X = df_row.reindex(columns=feature_order, fill_value=0)
-
-# 5) Scale with saved scaler
-Xs = scaler.transform(X)
-
-# 6) Score & predict
-score = float(model.decision_function(Xs)[0])   # higher -> more normal
-pred_raw = int(model.predict(Xs)[0])            # 1 = normal, -1 = anomaly
-flag = "Normal" if pred_raw == 1 else "Anomaly"
-
-# 7) Print results (including original label if present)
-print("=== Single-row prediction ===")
-if true_label is not None:
-    print("Ground-truth label (from CSV):", true_label)
-print(f"Anomaly score (decision_function): {score:.6f}   (higher = more normal)")
-print(f"Discrete prediction: {pred_raw}  -> {flag}")
-print("\nFeature snippet (first 10 features used):")
-print(X.iloc[0][:10])
-# helper: base normal sample (you can also take a real row from your training CSV)
+# --- Base normal sample ---
 def base_sample():
-    # create a zero-based sample and fill in with small baseline values
     s = {f: 0.0 for f in feature_order}
-    # set some realistic baseline values (tweak as needed)
     if 'ifInOctets11' in s: s['ifInOctets11'] = 1_000_000
     if 'ifOutOctets11' in s: s['ifOutOctets11'] = 900_000
     if 'tcpInSegs' in s: s['tcpInSegs'] = 1000
@@ -65,10 +29,9 @@ def base_sample():
     if 'icmpInMsgs' in s: s['icmpInMsgs'] = 5
     return s
 
-# create synthetic attack types
+# --- Synthetic attack generators ---
 def synth_udp_flood(base, intensity=50):
     s = base.copy()
-    # spike UDP datagrams and octets drastically
     if 'udpInDatagrams' in s: s['udpInDatagrams'] *= intensity
     if 'ifInOctets11' in s: s['ifInOctets11'] *= intensity
     if 'ipInReceives' in s: s['ipInReceives'] *= intensity
@@ -76,7 +39,6 @@ def synth_udp_flood(base, intensity=50):
 
 def synth_tcp_syn_flood(base, intensity=50):
     s = base.copy()
-    # spike TCP segments and passive opens or retrans
     if 'tcpInSegs' in s: s['tcpInSegs'] *= intensity
     if 'tcpPassiveOpens' in s: s['tcpPassiveOpens'] *= intensity
     if 'tcpRetransSegs' in s: s['tcpRetransSegs'] *= intensity / 5
@@ -84,40 +46,46 @@ def synth_tcp_syn_flood(base, intensity=50):
 
 def synth_http_flood(base, intensity=30):
     s = base.copy()
-    # more in/out requests, small packet sizes -> high packet/byte ratio could be used later
     if 'ipOutRequests' in s: s['ipOutRequests'] *= intensity
     if 'ifInUcastPkts11' in s: s['ifInUcastPkts11'] *= intensity
     if 'ifInOctets11' in s: s['ifInOctets11'] *= (intensity // 2)
     return s
 
-# test function: scale, score, predict
+# --- Testing helper ---
 def test_sample(sample_dict):
-    df = pd.DataFrame([sample_dict])
-    # align columns
-    df = df.reindex(columns=feature_order, fill_value=0)
-    Xs = scaler.transform(df)
-    score = model.decision_function(Xs)[0]   # higher -> more normal
-    pred = model.predict(Xs)[0]              # 1=normal, -1=anomaly
-    return score, pred
+    df = pd.DataFrame([sample_dict]).reindex(columns=feature_order, fill_value=0)
 
+    # Scale for Isolation Forest
+    X_if = scaler_if.transform(df)
+    score = model_if.decision_function(X_if)[0]
+    pred = model_if.predict(X_if)[0]  # 1 = normal, -1 = anomaly
+    flag = "Normal" if pred == 1 else "Anomaly"
+
+    anomaly_type = None
+    if flag == "Anomaly":
+        # 🧠 Also scale for classifier
+        X_cls = scaler_cls.transform(df)
+        pred_cls = model_cls.predict(X_cls)
+        anomaly_type = label_encoder.inverse_transform(pred_cls)[0]
+
+    return score, flag, anomaly_type
+
+# --- Main test block ---
 if __name__ == "__main__":
     base = base_sample()
+    
+    s_score, s_flag, s_type = test_sample(base)
+    print(f"Score={s_score:.4f}, Flag={s_flag}, Type={s_type or 'N/A'}")
 
-    # normal baseline
-    s_score, s_pred = test_sample(base)
-    print(f"BASELINE → score={s_score:.4f}, flag={'Normal' if s_pred==1 else 'Anomaly'}")
-
-    # synthetic UDP flood
     udp = synth_udp_flood(base, intensity=100)
-    score_udp, pred_udp = test_sample(udp)
-    print(f"SIM UDP FLOOD → score={score_udp:.4f}, flag={'Normal' if pred_udp==1 else 'Anomaly'}")
+    score_udp, flag_udp, type_udp = test_sample(udp)
+    print(f"Score={score_udp:.4f}, Flag={flag_udp}, Type={type_udp or 'N/A'}")
 
-    # synthetic TCP SYN flood
     syn = synth_tcp_syn_flood(base, intensity=80)
-    score_syn, pred_syn = test_sample(syn)
-    print(f"SIM TCP-SYN FLOOD → score={score_syn:.4f}, flag={'Normal' if pred_syn==1 else 'Anomaly'}")
+    score_syn, flag_syn, type_syn = test_sample(syn)
+    print(f"Score={score_syn:.4f}, Flag={flag_syn}, Type={type_syn or 'N/A'}")
 
-    # synthetic HTTP flood
+    print("\n=== SYNTHETIC HTTP FLOOD ===")
     http = synth_http_flood(base, intensity=60)
-    score_http, pred_http = test_sample(http)
-    print(f"SIM HTTP FLOOD → score={score_http:.4f}, flag={'Normal' if pred_http==1 else 'Anomaly'}")
+    score_http, flag_http, type_http = test_sample(http)
+    print(f"Score={score_http:.4f}, Flag={flag_http}, Type={type_http or 'N/A'}")
