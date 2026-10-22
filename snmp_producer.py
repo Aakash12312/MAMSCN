@@ -40,7 +40,7 @@ async def poll_snmp(snmp_engine, ip, oids_list, community='public', hostname=Non
 
     var_binds_to_get = [ObjectType(ObjectIdentity(oid)) for oid in oids_list]
 
-    errorIndication, errorStatus, errorIndex, varBinds = await get_cmd(
+    errorIndication, error_status, errorIndex, varBinds = await get_cmd(
         snmp_engine,
         CommunityData(community, mpModel=1),
         transport,
@@ -60,8 +60,8 @@ async def poll_snmp(snmp_engine, ip, oids_list, community='public', hostname=Non
     if errorIndication:
         record["results"]["error"] = str(errorIndication)
         print(f"❌ Error polling {ip}: {errorIndication}")
-    elif errorStatus:
-        error_msg = f"{errorStatus.prettyPrint()} at {errorIndex and varBinds[int(errorIndex) - 1][0] or '?'}"
+    elif error_status:
+        error_msg = f"{error_status.prettyPrint()} at {errorIndex and varBinds[int(errorIndex) - 1][0] or '?'}"
         record["results"]["error"] = error_msg
         print(f"❌ SNMP Error {ip}: {error_msg}")
     else:
@@ -71,14 +71,20 @@ async def poll_snmp(snmp_engine, ip, oids_list, community='public', hostname=Non
             record["results"][oid] = value
         print(f"✅ Polled {ip}")
 
-        # Write to CSV
-        with open(LOCAL_CSV_LOG, "a", newline="") as f:
-            writer = csv.writer(f)
-            for oid, value in record["results"].items():
-                writer.writerow([
-                    record["host"], host, port, community,
-                    record["collector_hostname"], record["timestamp"], oid, value
-                ])
+        # Prepare rows for CSV in a separate thread to avoid blocking the event loop
+        rows = []
+        for oid, value in record["results"].items():
+            rows.append([
+                record["host"], host, port, community,
+                record["collector_hostname"], record["timestamp"], oid, value
+            ])
+        if rows:
+            def _write_rows(r):
+                with open(LOCAL_CSV_LOG, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    for row in r:
+                        writer.writerow(row)
+            await asyncio.to_thread(_write_rows, rows)
 
     # Send to Kafka
     producer.send(KAFKA_TOPIC, record)
