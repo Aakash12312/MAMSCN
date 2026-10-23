@@ -9,6 +9,8 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    security_opt:
+      - no-new-privileges
 
   kafka:
     image: confluentinc/cp-kafka:7.6.0
@@ -23,6 +25,8 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    security_opt:
+      - no-new-privileges
 
   mysql:
     image: mysql:8.0
@@ -37,6 +41,8 @@ services:
       - "3307:3306"   # ✅ changed to 3307 so it won't clash with your local MySQL
     volumes:
       - mysql_data:/var/lib/mysql
+    security_opt:
+      - no-new-privileges
 
   grafana:
     image: grafana/grafana:10.0.0
@@ -50,6 +56,8 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana_data:/var/lib/grafana
+    security_opt:
+      - no-new-privileges
 
 volumes:
   mysql_data:
