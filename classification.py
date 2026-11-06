@@ -72,7 +72,9 @@ clf = RandomForestClassifier(
     n_estimators=150,
     random_state=42,
     n_jobs=-1,
-    class_weight="balanced"
+    class_weight="balanced",
+    min_samples_leaf=2,
+    max_features="sqrt"
 )
 
 clf.fit(X_train_scaled, y_train)
