@@ -22,7 +22,12 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 # Train Random Forest
 print("\n🔹 Training Random Forest...")
-rf = RandomForestClassifier(n_estimators=200, random_state=42)
+rf = RandomForestClassifier(
+    n_estimators=200,
+    random_state=42,
+    min_samples_leaf=2,
+    max_features="sqrt"
+)
 rf.fit(X_train, y_train)
 
 # Evaluate
